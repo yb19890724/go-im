@@ -9,6 +9,19 @@ Vue.config.productionTip = false
 
 Vue.use(httpPlugin);
 
+
+/*
+router.beforeEach((to, from, next) => {
+
+    if (localStorage.getItem('currentUserToken')) {
+        return next();
+    }else{
+        return next('/login')
+    }
+})
+*/
+
+
 /* eslint-disable no-new */
 new Vue({
     router,

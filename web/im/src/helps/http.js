@@ -4,7 +4,8 @@ import axios from 'axios';
  * Create Axios
  */
 export const http = axios.create({
-    baseURL: "localhost:9090"
+    baseURL: "localhost:9090",
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'}
 });
 
 

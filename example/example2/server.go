@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/dgrijalva/jwt-go"
 	response "github.com/yb19890724/go-im/tools/response/json"
 	"log"
@@ -45,13 +46,28 @@ func ParseToken(tokenSrt string, SecretKey []byte) (claims jwt.Claims, err error
 	return
 }
 
+type loginRequest struct {
+	Username string
+	Password string
+}
 
 // 登录
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	
-	r.ParseForm()
+	w = cors(w)
 	
-	if r.PostForm.Get("username") == "test" &&  r.PostForm.Get("password") == "test" {
+	decoder := json.NewDecoder(r.Body)
+
+	var lr loginRequest
+	
+	if err := decoder.Decode(&lr);err != nil {
+
+		response.ResponseBad(w)
+		
+		return
+	}
+	
+	if lr.Username == "test" && lr.Password == "test" {
 		
 		secretKey := make([]byte,0)
 		
@@ -66,11 +82,18 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	response.ResponseJson(w ,"登录失败", map[string]string{})
 }
 
+// 跨域
+func cors(w http.ResponseWriter)(http.ResponseWriter ) {
+	w.Header().Set("Access-Control-Allow-Origin","*")
+	w.Header().Add("Access-Control-Allow-Headers","Content-Type")
+	return w
+}
 
 func main() {
 	http.HandleFunc("/login", loginHandler) //设置访问的路由
-	err := http.ListenAndServe(":8080", nil) //设置监听的端口
+	err := http.ListenAndServe(":9090", nil) //设置监听的端口
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
 }
+

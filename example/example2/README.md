@@ -4,9 +4,10 @@
 
 #### post:
 ```gotemplate
-localhost:8080/login
+localhost：9090/login
 
-form {
+// 提交数据 json 格式
+{
     username:"test"
     password:"test
 }

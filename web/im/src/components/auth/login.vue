@@ -5,11 +5,11 @@
             <form id='login-form' class="mui-input-group">
                 <div class="mui-input-row">
                     <label>账号</label>
-                    <input v-model="user.mobile" placeholder="请输入手机号" type="text" class="mui-input-clear mui-input" >
+                    <input v-model="user.username" placeholder="请输入用户名" type="text" class="mui-input-clear mui-input" >
                 </div>
                 <div class="mui-input-row">
                     <label>密码</label>
-                    <input v-model="user.passwd" placeholder="请输入密码"  type="password" class="mui-input-clear mui-input" >
+                    <input v-model="user.password" placeholder="请输入密码"  type="password" class="mui-input-clear mui-input" >
                 </div>
             </form>
             <div class="mui-content-padded">
@@ -28,17 +28,21 @@
         data:function(){
             return {
                 user:{
-                    mobile:"",
-                    passwd:""
+                    username:"",
+                    password:""
                 }
             }
         },
         methods:{
             login:function(){
-                this.$http.post("http://localhost:9090").then((response) => {
-                    console.log("Suc")
-                }).catch(({response}) => {
-                    console.log("Err")
+                this.$http.post("http://localhost:9090/login",JSON.stringify(this.user)).then((response) => {
+                    if(response.status==200 && response.data.data!=""){
+                        alert( response.data.msg)
+                        localStorage.setItem("currentUserToken",response.data.data.token);
+                        this.$router.push({name:"home"})
+                        return false;
+                    }
+
                 });
             },
         }
