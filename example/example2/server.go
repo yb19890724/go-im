@@ -2,16 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	response "github.com/yb19890724/go-im/tools/response/json"
+	"github.com/yb19890724/go-ims/example/example2/model"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 )
 
 type Response struct {
-	Code int `json:"code"`
-	Msg  string `json:"msg"`
+	Code int         `json:"code"`
+	Msg  string      `json:"msg"`
 	Data interface{} `json:"data,omitempty"`
 }
 
@@ -51,6 +54,42 @@ type loginRequest struct {
 	Password string
 }
 
+//  注册
+func registerHandler(w http.ResponseWriter, r *http.Request)  {
+	w = cors(w)
+	
+	decoder := json.NewDecoder(r.Body)
+	
+	var lr loginRequest
+	
+	if err := decoder.Decode(&lr);err != nil {
+		
+		response.ResponseBad(w)
+		
+		return
+	}
+	
+	if lr.Username != "" && lr.Password != "" {
+		
+		var user model.User
+		
+		user.Username = lr.Username
+		user.Password = lr.Password
+		user.Nickname = fmt.Sprintf("user%d",rand.Int())
+		
+		_,err:=user.Insert()
+		
+		if err !=nil {
+			response.ResponseJson(w, "注册成功，返回登录页",map[string]string{})
+		}
+		
+	}
+	
+	response.ResponseJson(w ,"注册失败", map[string]string{})
+	
+	return
+}
+
 // 登录
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	
@@ -67,21 +106,29 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	if lr.Username == "test" && lr.Password == "test" {
-		
-		secretKey := make([]byte,0)
-		
-		token, _ := CreateToken(secretKey, "test", 2222)
-		
-		response.ResponseJson(w, "登录成功",map[string]string{
-			"token":token,
+	var user model.User
+	user.Username=lr.Username
+	user.Password=lr.Password
+	
+	err:=user.Login()
+	if err!=nil{
+		response.ResponseJson(w ,"账号或密码错误", map[string]string{})
+	}
+	
+	secretKey := make([]byte,0)
+	token, _ := CreateToken(secretKey, "im",uint(user.ID))
+	
+	user.Token=token
+	res, err := user.Update(user.ID)
+	
+	if res != nil {
+		response.ResponseJson(w, "登录成功", map[string]string{
+			"token": token,
 		})
-		return
 	}
 	
 	response.ResponseJson(w ,"登录失败", map[string]string{})
 }
-
 // 跨域
 func cors(w http.ResponseWriter)(http.ResponseWriter ) {
 	w.Header().Set("Access-Control-Allow-Origin","*")
