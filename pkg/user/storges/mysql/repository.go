@@ -5,6 +5,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/yb19890724/go-im/pkg/user/service/auth"
+	"time"
 )
 
 // struct storage db object
@@ -33,32 +34,61 @@ func NewStorage(dbConfig string) (*Storage, error) {
 	
 }
 
-// get user info
-func (s *Storage) User(params auth.User) (auth.User, error) {
-	lu := auth.User{}
-	err := s.DB.Select([]string{"id"}).
-		Where("username = ?", params.Username).
-		Where("password = ?", params.Password).
-		First(&lu).Error;
-	if err != nil {
-		return lu, nil
+// 限制范围
+func (s *Storage) Scope(ps auth.User) *Storage {
+	
+	if ps.Username != "" {
+		s.DB = s.DB.Where("username=?", ps.Username)
 	}
-	return lu, err
+	return s
+}
+
+// get user info
+func (s *Storage) User(u auth.User) (auth.User, error) {
+	
+	lu := auth.User{}
+	
+	if err := s.Scope(u).DB.Select([]string{"id"}).First(&lu).Error;err != nil {
+	
+		return lu, err
+		
+	}
+	return lu, nil
+}
+
+// update user
+func (s *Storage) Update(id uint, ps auth.User) (user auth.User, err error) {
+	
+	ps.Updated = time.Now().Format("Y-m-d H:i:s")
+	
+	lu := auth.User{}
+	// 参数1:是要修改的数据
+	// 参数2:是修改的数据
+	if err = s.DB.Model(&lu).Where("id=?", id).Updates(&ps).Error; err != nil {
+		return
+	}
+	
+	return
 }
 
 // create user
-func (s *Storage) Add(params auth.User) (id int, err error) {
+func (s *Storage) Add(u auth.User) (id uint, err error) {
 	
-	user := User{
-		Username: params.Username,
-		Password: params.Password,
+	newU := User{
+		Username: u.Username,
+		Password: u.Password,
+		Nickname: u.Nickname,
+		Created:  time.Now().Format("2006-01-02 15:04:05"),
+		Updated:  time.Now().Format("2006-01-02 15:04:05"),
 	}
 	
-	result := s.DB.Create(&user)
-	id = user.ID
-	if result.Error != nil {
-		err = result.Error
-		return id,err
+	res := s.DB.Create(&newU)
+	
+	id = newU.ID
+	
+	if res.Error != nil {
+		err = res.Error
+		return
 	}
-	return id,nil
+	return
 }

@@ -13,7 +13,7 @@ func main() {
 	
 	var login auth.Service
 	
-	var dbConfig string = "default:secret@tcp(192.168.1.100:3306)/default?charset=utf8mb4&parseTime=True&loc=Local&timeout=10ms"
+	var dbConfig string = "default:secret@tcp(192.168.1.104:3306)/default?charset=utf8mb4&parseTime=True&loc=Local&timeout=10ms"
 	
 	s, err := mysql.NewStorage(dbConfig)
 	
