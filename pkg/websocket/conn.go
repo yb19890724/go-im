@@ -23,8 +23,8 @@ type wsMessage struct {
 }
 
 type Message struct {
-	Token   string
-	Context string
+	Token   string  `json:"token"`
+	Context string  `json:"context"`
 }
 
 // 客户端连接
@@ -32,6 +32,8 @@ type wsConn struct {
 	wsSocket *websocket.Conn // 底层websocket
 	inChan   chan *wsMessage // 读队列
 	outChan  chan *wsMessage // 写队列
+	uid      int64
+	token    string
 	
 	mutex     sync.Mutex // 避免重复关闭管道
 	isClosed  bool
@@ -39,7 +41,7 @@ type wsConn struct {
 }
 
 // 与客户端建立web socket 连接
-func upgrade(w http.ResponseWriter, r *http.Request,uid int64) (conn *websocket.Conn, err error) {
+func upgrade(w http.ResponseWriter, r *http.Request) (conn *websocket.Conn, err error) {
 	
 	conn,err =(&websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -55,28 +57,32 @@ func upgrade(w http.ResponseWriter, r *http.Request,uid int64) (conn *websocket.
 // ws 调度
 func WsHandler(w http.ResponseWriter, r *http.Request) {
 	
-	// todo:  验证用户auth
+	
 	r.ParseForm()
 	
-	uid,err:=checkAuth(r.Form.Get("token")) // 校验token
+	token :=r.Form.Get("token")
 	
-	fmt.Println(uid,err)
-	if err != nil {
-		return
-	}
-	
-	conn, err := upgrade(w, r,uid)
+	// todo:  验证用户auth
+	uid,err:=checkAuth(token) // 校验token
 	
 	if err != nil {
 		return
 	}
 	
-	fmt.Println("connection success")
+	conn, err := upgrade(w, r)
+	
+	if err != nil {
+		return
+	}
+	
+	fmt.Println(fmt.Sprintf("client %d connection server success",uid))
 	
 	wsConn := &wsConn{
-		wsSocket: conn,
-		inChan:   make(chan *wsMessage, 1000),
-		outChan:  make(chan *wsMessage, 1000),
+		wsSocket:  conn,
+		inChan:    make(chan *wsMessage, 1000),
+		outChan:   make(chan *wsMessage, 1000),
+		uid:       uid,
+		token:     token,
 		closeChan: make(chan byte),
 		isClosed:  false,
 	}
@@ -88,7 +94,7 @@ func WsHandler(w http.ResponseWriter, r *http.Request) {
 	
 	fmt.Println(clientMap)
 	// 处理器
-	//go procLoop(wsConn)
+	go procLoop(wsConn)
 	
 	go wsReadLoop(wsConn)
 	go wsResponse(wsConn)
@@ -107,7 +113,6 @@ func wsReadLoop(wsConn *wsConn)  {
 		if err != nil {
 			goto error
 		}
-		fmt.Println(string(data))
 		
 		req := &wsMessage{
 			msgType,
@@ -144,20 +149,17 @@ func wsWriteLoop(wsConn *wsConn) {
 			
 			uid, err := checkAuth(sendMsg.Token)
 			
-			fmt.Println(uid)
+			fmt.Println(fmt.Sprintf("send client user:%s",uid))
 			rwLock.Lock()
 			sConn,ok :=clientMap[uid]
 			rwLock.Unlock()
 			
-			
-			if !ok {
-				fmt.Println(ok)
+			if ok {
+				if err := sConn.wsSocket.WriteMessage(msg.messageType, []byte(sendMsg.Context)); err != nil {
+					sConn.wsClose()
+				}
 			}
-			
 			// 写给websocket
-			if err := sConn.wsSocket.WriteMessage(msg.messageType, msg.data); err != nil {
-				wsConn.wsClose()
-			}
 			
 		case <-wsConn.closeChan:
 			goto closed
@@ -176,13 +178,21 @@ func wsResponse(wsConn *wsConn) {
 
 // 退出关闭所有资源
 func (wsConn *wsConn) wsClose() {
+	// 关闭当前长连接
 	wsConn.wsSocket.Close()
 	
 	wsConn.mutex.Lock()
 	defer wsConn.mutex.Unlock()
 	if !wsConn.isClosed {
 		wsConn.isClosed = true
-		close(wsConn.closeChan)
+		close(wsConn.closeChan) // 关闭通知管道，通知所有协程退出
+	}
+	
+	if _, ok := clientMap[wsConn.uid]; ok {// 关闭资源删除用户连接
+		// 删除用户连接记录
+		delete(clientMap,wsConn.uid)
+		fmt.Println(fmt.Sprintf("clear client:%d socket",wsConn.uid))
+		fmt.Println(clientMap)
 	}
 }
 
@@ -193,7 +203,13 @@ func procLoop(wsConn *wsConn) {
 	go func() {
 		for {
 			time.Sleep(2 * time.Second)
-			if err := wsConn.wsWrite(websocket.TextMessage, []byte("heartbeat from server")); err != nil {
+			
+			msg, _ := json.Marshal(Message{
+				Token:   wsConn.token,
+				Context: "heartbeat from server",
+			})
+			
+			if err := wsConn.wsWrite(websocket.TextMessage, []byte(msg)); err != nil {
 				fmt.Println("heartbeat fail")
 				wsConn.wsClose()
 				break

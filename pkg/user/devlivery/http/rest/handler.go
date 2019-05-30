@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/julienschmidt/httprouter"
-	response "github.com/yb19890724/go-clean-structure/tools/response/json"
 	"github.com/yb19890724/go-im/pkg/user/service/auth"
+	response "github.com/yb19890724/go-im/tools/response/json"
 	"net/http"
 )
 
@@ -54,7 +54,7 @@ func Login(l auth.Service) func(w http.ResponseWriter, r *http.Request, _ httpro
 		data := map[string]string{
 			"token": res,
 		}
-		response.ResponseJson(w, data)
+		response.ResponseJson(w, "登录成功",data)
 	}
 	
 }
@@ -79,7 +79,7 @@ func Register(l auth.Service) func(w http.ResponseWriter, r *http.Request, _ htt
 		
 		if res == 0 || err != nil {
 			
-			response.WithNotImplemented(w)
+			response.WithNotImplemented(w,err.Error())
 			
 			return
 		}

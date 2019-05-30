@@ -38,14 +38,14 @@ func NewService(r Repository) Service {
 }
 
 // create token
-func createToken(uid uint, ud string) (token string, err error) {
+func createToken(uid uint, up string) (token string, err error) {
 	var sk []byte
 	claims := &jwtCustomClaims{
 		jwt.StandardClaims{
 			ExpiresAt: int64(time.Now().Add(time.Hour * 72).Unix()),
 		},
 		uid,
-		ud,
+		up,
 	}
 	tk := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	token, err = tk.SignedString(sk)
@@ -59,12 +59,14 @@ func (s *service) Login(ps User) (string, error) {
 	
 	if res.Token != "" {
 		
+		// 获取token
 		tk, err := createToken(uint(res.ID), res.Updated)
 		
 		if err != nil {
 			log.Fatalf("create token err:%s", err)
 		}
 		
+		// 更新数据库 token
 		res, err := s.GR.Update(res.ID, User{
 			Token: tk,
 		})

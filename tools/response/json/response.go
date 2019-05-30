@@ -38,7 +38,7 @@ func Json(w http.ResponseWriter, status int, data interface{}) {
 
 }
 
-// list 响应
+// data message 响应
 func ResponseJson(w http.ResponseWriter, message string, data interface{})  {
 
 	response.Data=data
@@ -56,4 +56,24 @@ func WithCreated(w http.ResponseWriter) {
 
 	Json(w, http.StatusCreated, response)
 
+}
+
+// http status 400
+func BadRequest(w http.ResponseWriter,msg string) {
+	
+	response.Code = Fail
+	
+	response.Message = msg
+	
+	Json(w, http.StatusBadRequest, response)
+}
+
+// http status 501
+func WithNotImplemented(w http.ResponseWriter,msg string) {
+	
+	response.Code = Error
+	
+	response.Message = msg
+	
+	Json(w, http.StatusNotImplemented, response)
 }
