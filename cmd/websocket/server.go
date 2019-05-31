@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/yb19890724/go-im/pkg/websocket"
+	"../../pkg/websocket"
 	"net/http"
 )
 
