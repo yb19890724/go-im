@@ -18,7 +18,7 @@ export default new Router({
             path:'/home',
             name:'home',
             beforeEnter:requireAuth,
-            components: require("../components/foundation/home")
+            components: require("../components/home")
         }
     ],
     mode:"history",
@@ -26,10 +26,11 @@ export default new Router({
 })
 
 function requireAuth (to, from, next) {
-    if (localStorage.getItem("currentUserToken")) {
+    return next();
+   /* if (localStorage.getItem("currentUserToken")) {
         return next();
     }else{
         return next('/')
-    }
+    }*/
 }
 

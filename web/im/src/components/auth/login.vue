@@ -35,7 +35,8 @@
         },
         methods:{
             login:function(){
-                this.$http.post("http://localhost:9090/login",JSON.stringify(this.user)).then((response) => {
+                this.$router.push({name:"home"})
+               /* this.$http.post("http://localhost:9090/login",JSON.stringify(this.user)).then((response) => {
                     if(response.status==200 && response.data.data!=""){
                         alert( response.data.msg)
                         localStorage.setItem("currentUserToken",response.data.data.token);
@@ -43,7 +44,7 @@
                         return false;
                     }
 
-                });
+                });*/
             },
         }
 
