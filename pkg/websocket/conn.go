@@ -11,9 +11,6 @@ import (
 )
 
 
-//映射关系表
-var clientMap = make(map[int64]*wsConn,0)
-
 var rwLock  sync.RWMutex// 读写锁
 
 // 客户端读写消息
@@ -87,12 +84,8 @@ func WsHandler(w http.ResponseWriter, r *http.Request) {
 		isClosed:  false,
 	}
 	
+	ConnMap.AddConnection(uid,wsConn)
 	
-	rwLock.Lock()
-	clientMap[uid]=wsConn
-	rwLock.Unlock()
-	
-	fmt.Println(clientMap)
 	// 处理器
 	go procLoop(wsConn)
 	
@@ -150,9 +143,8 @@ func wsWriteLoop(wsConn *wsConn) {
 			uid, err := checkAuth(sendMsg.Token)
 			
 			fmt.Println(fmt.Sprintf("send client user:%s",uid))
-			rwLock.Lock()
-			sConn,ok :=clientMap[uid]
-			rwLock.Unlock()
+			
+			sConn,ok := ConnMap.Connection(uid)
 			
 			if ok {
 				if err := sConn.wsSocket.WriteMessage(msg.messageType, []byte(sendMsg.Context)); err != nil {
@@ -188,11 +180,11 @@ func (wsConn *wsConn) wsClose() {
 		close(wsConn.closeChan) // 关闭通知管道，通知所有协程退出
 	}
 	
-	if _, ok := clientMap[wsConn.uid]; ok {// 关闭资源删除用户连接
+	if _, ok := ConnMap.Connection(wsConn.uid); ok {// 关闭资源删除用户连接
 		// 删除用户连接记录
-		delete(clientMap,wsConn.uid)
+		
+		ConnMap.DelConnection(wsConn.uid)
 		fmt.Println(fmt.Sprintf("clear client:%d socket",wsConn.uid))
-		fmt.Println(clientMap)
 	}
 }
 
