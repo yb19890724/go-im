@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -29,20 +28,16 @@ type wsConnection struct {
 	wsSocket *websocket.Conn // 底层websocket
 	inChan   chan *wsMessage // 读队列
 	outChan  chan *wsMessage // 写队列
-	
-	mutex     sync.Mutex // 避免重复关闭管道
-	isClosed  bool
-	closeChan chan byte // 关闭通知
-	Exit      context.CancelFunc
+	Exit     context.CancelFunc
 }
 
 func initConn(ws *websocket.Conn, cancel context.CancelFunc) *wsConnection {
 	
 	return &wsConnection{
-		wsSocket:  ws,
-		inChan:    make(chan *wsMessage, 1000),
-		outChan:   make(chan *wsMessage, 1000),
-		Exit:      cancel,
+		wsSocket: ws,
+		inChan:   make(chan *wsMessage, 1000),
+		outChan:  make(chan *wsMessage, 1000),
+		Exit:     cancel,
 	}
 }
 
@@ -72,6 +67,7 @@ CLOSED:
 }
 
 func (wsConn *wsConnection) wsWriteLoop(ctx context.Context) {
+	
 	for {
 		select {
 		// 取一个应答
@@ -91,7 +87,6 @@ CLOSED:
 }
 
 func (wsConn *wsConnection) processLoop(ctx context.Context) {
-	
 	for {
 		select {
 		case msg := <-wsConn.inChan:
