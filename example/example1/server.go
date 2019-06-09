@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -32,14 +33,25 @@ type wsConnection struct {
 	mutex     sync.Mutex // 避免重复关闭管道
 	isClosed  bool
 	closeChan chan byte // 关闭通知
+	Exit      context.CancelFunc
 }
 
-func (wsConn *wsConnection) wsReadLoop() {
+func initConn(ws *websocket.Conn, cancel context.CancelFunc) *wsConnection {
+	
+	return &wsConnection{
+		wsSocket:  ws,
+		inChan:    make(chan *wsMessage, 1000),
+		outChan:   make(chan *wsMessage, 1000),
+		Exit:      cancel,
+	}
+}
+
+func (wsConn *wsConnection) wsReadLoop(ctx context.Context) {
 	for {
 		// 读一个message
 		msgType, data, err := wsConn.wsSocket.ReadMessage()
 		if err != nil {
-			goto error
+			goto ERROR
 		}
 		fmt.Println(string(data))
 		req := &wsMessage{
@@ -49,49 +61,67 @@ func (wsConn *wsConnection) wsReadLoop() {
 		// 放入请求队列
 		select {
 		case wsConn.inChan <- req:
-		case <-wsConn.closeChan:
-			goto closed
+		case <-ctx.Done():
+			goto CLOSED
 		}
 	}
-error:
-	wsConn.wsClose()
-closed:
+ERROR:
+	wsConn.Exit()
+CLOSED:
+	fmt.Println("wsReadLoop退出")
 }
 
-func (wsConn *wsConnection) wsWriteLoop() {
+func (wsConn *wsConnection) wsWriteLoop(ctx context.Context) {
 	for {
 		select {
 		// 取一个应答
 		case msg := <-wsConn.outChan:
 			// 写给websocket
 			if err := wsConn.wsSocket.WriteMessage(msg.messageType, msg.data); err != nil {
-				goto error
+				goto ERROR
 			}
-		case <-wsConn.closeChan:
-			goto closed
+		case <-ctx.Done():
+			goto CLOSED
 		}
 	}
-error:
-	wsConn.wsClose()
-closed:
+ERROR:
+	wsConn.Exit()
+CLOSED:
+	fmt.Println("wsWriteLoop退出")
 }
 
-func (wsConn *wsConnection) procLoop() {
+func (wsConn *wsConnection) processLoop(ctx context.Context) {
+	
+	for {
+		select {
+		case msg := <-wsConn.inChan:
+			wsConn.outChan <- msg
+		case <-ctx.Done():
+			goto CLOSED
+		}
+	}
+CLOSED:
+	fmt.Println("processLoop退出")
+}
+
+func (wsConn *wsConnection) heartBeatLoop(ctx context.Context) {
 	// 启动一个gouroutine发送心跳
 	go func() {
 		for {
 			time.Sleep(2 * time.Second)
-			if err := wsConn.wsWrite(websocket.TextMessage, []byte("heartbeat from server")); err != nil {
+			if err := wsConn.wsWrite(ctx, websocket.TextMessage, []byte("heartbeat from server")); err != nil {
 				fmt.Println("heartbeat fail")
-				wsConn.wsClose()
+				wsConn.Exit()
 				break
 			}
 		}
 	}()
-	
 }
 
 func wsHandler(resp http.ResponseWriter, req *http.Request) {
+	
+	ctx, cancel := context.WithCancel(context.Background())
+	
 	// 应答客户端告知升级连接为websocket
 	wsSocket, err := wsUpgrader.Upgrade(resp, req, nil)
 	
@@ -101,49 +131,25 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	
 	fmt.Println("connection success")
 	
-	wsConn := &wsConnection{
-		wsSocket:  wsSocket,
-		inChan:    make(chan *wsMessage, 1000),
-		outChan:   make(chan *wsMessage, 1000),
-		closeChan: make(chan byte),
-		isClosed:  false,
-	}
+	wsConn := initConn(wsSocket, cancel)
 	
+	// 心跳
+	go wsConn.heartBeatLoop(ctx)
 	// 处理器
-	go wsConn.procLoop()
+	go wsConn.processLoop(ctx)
 	// 读协程
-	go wsConn.wsReadLoop()
+	go wsConn.wsReadLoop(ctx)
 	// 写协程
-	go wsConn.wsWriteLoop()
+	go wsConn.wsWriteLoop(ctx)
 }
 
-func (wsConn *wsConnection) wsWrite(messageType int, data []byte) error {
+func (wsConn *wsConnection) wsWrite(ctx context.Context, messageType int, data []byte) error {
 	select {
 	case wsConn.outChan <- &wsMessage{messageType, data,}:
-	case <-wsConn.closeChan:
+	case <-ctx.Done():
 		return errors.New("websocket closed")
 	}
 	return nil
-}
-
-func (wsConn *wsConnection) wsRead() (*wsMessage, error) {
-	select {
-	case msg := <-wsConn.inChan:
-		return msg, nil
-	case <-wsConn.closeChan:
-	}
-	return nil, errors.New("websocket closed")
-}
-
-func (wsConn *wsConnection) wsClose() {
-	wsConn.wsSocket.Close()
-	
-	wsConn.mutex.Lock()
-	defer wsConn.mutex.Unlock()
-	if !wsConn.isClosed {
-		wsConn.isClosed = true
-		close(wsConn.closeChan)
-	}
 }
 
 func main() {
