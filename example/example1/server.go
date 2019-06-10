@@ -99,6 +99,15 @@ CLOSED:
 	fmt.Println("processLoop退出")
 }
 
+func (wsConn *wsConnection) wsWrite(ctx context.Context, messageType int, data []byte) error {
+	select {
+	case wsConn.outChan <- &wsMessage{messageType, data,}:
+	case <-ctx.Done():
+		return errors.New("websocket closed")
+	}
+	return nil
+}
+
 func (wsConn *wsConnection) heartBeatLoop(ctx context.Context) {
 	// 启动一个gouroutine发送心跳
 	go func() {
@@ -138,14 +147,7 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	go wsConn.wsWriteLoop(ctx)
 }
 
-func (wsConn *wsConnection) wsWrite(ctx context.Context, messageType int, data []byte) error {
-	select {
-	case wsConn.outChan <- &wsMessage{messageType, data,}:
-	case <-ctx.Done():
-		return errors.New("websocket closed")
-	}
-	return nil
-}
+
 
 func main() {
 	http.HandleFunc("/ws", wsHandler)
