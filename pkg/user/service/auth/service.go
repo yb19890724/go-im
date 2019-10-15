@@ -26,7 +26,7 @@ type service struct {
 
 type jwtCustomClaims struct {
 	jwt.StandardClaims
-	
+
 	// 追加自己需要的信息
 	Uid uint   `json:"uid"`
 	Up  string `json:"updated"`
@@ -54,24 +54,24 @@ func createToken(uid uint) (token string, err error) {
 
 // service call repository (user and update)
 func (s *service) Login(ps User) (tk string, err error) {
-	
+
 	res, err := s.GR.User(ps)
-	
+
 	if res.ID != 0 {
-		
+
 		// 获取token
 		tk, err = createToken(uint(res.ID))
-		
+
 		if err != nil {
 			log.Fatalf("create token err:%s", err)
-			return "",err
+			return "", err
 		}
-		
+
 		// 更新数据库 token
 		res, err := s.GR.Update(res.ID, User{
 			Token: tk,
 		})
-		
+
 		return res.Token, err
 	}
 	return "", err
@@ -79,15 +79,15 @@ func (s *service) Login(ps User) (tk string, err error) {
 
 // service call repository Add
 func (s *service) Register(ps User) (uint, error) {
-	
+
 	User, err := s.GR.User(ps)
-	
+
 	// 查询记录 User.ID==0 && err.Error()== "record not found" 没有记录
 	if 0 != User.ID || err.Error() != "record not found" { // 避免重复注册
-	
+
 		return 0, err
-		
+
 	}
-	
+
 	return s.GR.Add(ps)
 }

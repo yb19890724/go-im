@@ -32,7 +32,7 @@ type wsConnection struct {
 }
 
 func initConn(ws *websocket.Conn, cancel context.CancelFunc) *wsConnection {
-	
+
 	return &wsConnection{
 		wsSocket: ws,
 		inChan:   make(chan *wsMessage, 1000),
@@ -67,7 +67,7 @@ CLOSED:
 }
 
 func (wsConn *wsConnection) wsWriteLoop(ctx context.Context) {
-	
+
 	for {
 		select {
 		// 取一个应答
@@ -101,7 +101,7 @@ CLOSED:
 
 func (wsConn *wsConnection) wsWrite(ctx context.Context, messageType int, data []byte) error {
 	select {
-	case wsConn.outChan <- &wsMessage{messageType, data,}:
+	case wsConn.outChan <- &wsMessage{messageType, data}:
 	case <-ctx.Done():
 		return errors.New("websocket closed")
 	}
@@ -123,20 +123,20 @@ func (wsConn *wsConnection) heartBeatLoop(ctx context.Context) {
 }
 
 func wsHandler(resp http.ResponseWriter, req *http.Request) {
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// 应答客户端告知升级连接为websocket
 	wsSocket, err := wsUpgrader.Upgrade(resp, req, nil)
-	
+
 	if err != nil {
 		return
 	}
-	
+
 	fmt.Println("connection success")
-	
+
 	wsConn := initConn(wsSocket, cancel)
-	
+
 	// 心跳
 	go wsConn.heartBeatLoop(ctx)
 	// 处理器
@@ -146,8 +146,6 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	// 写协程
 	go wsConn.wsWriteLoop(ctx)
 }
-
-
 
 func main() {
 	http.HandleFunc("/ws", wsHandler)

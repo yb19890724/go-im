@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func init()  {
+func init() {
 	websocket.InitClientMap()
 }
 

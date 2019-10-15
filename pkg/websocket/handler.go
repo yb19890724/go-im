@@ -33,36 +33,36 @@ type wsConn struct {
 
 // 与客户端建立web socket 连接
 func upgrade(w http.ResponseWriter, r *http.Request) (conn *websocket.Conn, err error) {
-	
+
 	conn, err = (&websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
 	}).Upgrade(w, r, nil)
-	
+
 	// 应答客户端告知升级连接为websocket
 	return conn, err
 }
 
 func initConn(w http.ResponseWriter, r *http.Request, cancel context.CancelFunc) (ws *wsConn, err error) {
-	
+
 	r.ParseForm()
-	
+
 	token := r.Form.Get("token")
-	
+
 	// todo:  验证用户auth
 	uid, err := checkAuth(token) // 校验token
-	
+
 	if err != nil {
 		return
 	}
-	
+
 	conn, err := upgrade(w, r)
-	
+
 	if err != nil {
 		return
 	}
-	
+
 	ws = &wsConn{
 		wsSocket: conn,
 		inChan:   make(chan *wsMessage, 1000),
@@ -71,39 +71,39 @@ func initConn(w http.ResponseWriter, r *http.Request, cancel context.CancelFunc)
 		token:    token,
 		Exit:     cancel,
 	}
-	
+
 	return ws, nil
 }
 
 // 验证token
 func checkAuth(token string) (uid int64, err error) {
-	
+
 	if token == "11111" {
 		return 11111, nil
 	}
-	
+
 	if token == "22222" {
 		return 22222, nil
 	}
-	
+
 	return 0, errors.New("user auth error")
 }
 
 // ws 调度
 func WsHandler(w http.ResponseWriter, r *http.Request) {
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	wsConn, err := initConn(w, r, cancel)
-	
+
 	if err != nil {
 		return
 	}
-	
+
 	fmt.Println(fmt.Sprintf("client %d connection server success", wsConn.uid))
-	
+
 	ConnMap.AddConnection(wsConn.uid, wsConn)
-	
+
 	// 心跳
 	go wsConn.heartBeatLoop(ctx)
 	// 处理器
@@ -140,27 +140,26 @@ CLOSED:
 }
 
 func (wsConn *wsConn) wsWriteLoop(ctx context.Context) {
-	
+
 	for {
 		select {
 		// 取一个应答
 		case msg := <-wsConn.outChan:
-			
-			
+
 			var sendMsg Message
-			
+
 			err := json.Unmarshal([]byte(msg.data), &sendMsg)
-			
+
 			if err != nil {
 				fmt.Println(err)
 			}
-			
+
 			uid, err := checkAuth(sendMsg.Token)
-			
+
 			fmt.Println(fmt.Sprintf("send client user:%s", uid))
-			
+
 			sConn, ok := ConnMap.Connection(uid)
-			
+
 			if ok {
 				if err := sConn.wsSocket.WriteMessage(msg.messageType, []byte(sendMsg.Context)); err != nil {
 					wsConn.Exit()
@@ -168,7 +167,7 @@ func (wsConn *wsConn) wsWriteLoop(ctx context.Context) {
 					goto ERROR
 				}
 			}
-		
+
 		case <-ctx.Done():
 			goto CLOSED
 		}
@@ -194,7 +193,7 @@ CLOSED:
 
 func (wsConn *wsConn) wsWrite(ctx context.Context, messageType int, data []byte) error {
 	select {
-	case wsConn.outChan <- &wsMessage{messageType, data,}:
+	case wsConn.outChan <- &wsMessage{messageType, data}:
 	case <-ctx.Done():
 		return errors.New("websocket closed")
 	}
@@ -219,7 +218,7 @@ func (wsConn *wsConn) heartBeatLoop(ctx context.Context) {
 func (wsConn *wsConn) closeConn() {
 	if _, ok := ConnMap.Connection(wsConn.uid); ok { // 关闭资源删除用户连接
 		// 删除用户连接记录
-		
+
 		ConnMap.DelConnection(wsConn.uid)
 		fmt.Println(fmt.Sprintf("clear client:%d socket", wsConn.uid))
 	}
