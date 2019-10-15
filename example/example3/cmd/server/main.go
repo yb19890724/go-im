@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/yb19890724/go-im/example/example3/pkg/config"
 	"github.com/yb19890724/go-im/example/example3/pkg/connect"
@@ -12,12 +13,20 @@ import (
 	"net/http"
 )
 
-type User struct {
-	ID   int    `json:"id"`   // 列名为 `id`
-	Name string `json:"name"` // 列名为 `username`
+// 监听配置 是否发生变化做热处理
+func hotUpdate(conf *config.Configs,dbConns *connect.MysqlConnectors) {
+	changConf:=make(chan int,1)
+	ctx, cancel := context.WithCancel(context.Background())
+	
+	go func() {
+		dbConns.ResetDbsConn(ctx, cancel,changConf)
+	}()
+	// 监听k/v是否发生变
+	conf.Watch(ctx, cancel, "http://localhost:8500", "/cluster/database", changConf)
+	
 }
 
-var Users []User
+
 
 func main() {
 	
@@ -26,25 +35,18 @@ func main() {
 	
 	conf := config.NewMysqlConfig(consulClient) // 创建配置协议
 	
+	// 预热配置 缓存
 	err := conf.LoadMysql("/cluster/database")
 	
-	if err!= nil { // 预热配置 缓存
+	if err!= nil {
 		fmt.Println("auth server run err :%s",err)
 		return
 	}
 	
 	dbConns := connect.NewMysqlConnectors(conf) // 加载数据库连接
 	
-	
-	// 监听配置 是否发生变化做热处理
-	/*changConf:=make(chan int,1)
-	ctx, cancel := context.WithCancel(context.Background())
-	// 监听k/v是否发生变
-	conf.Watch(ctx, cancel, "http://localhost:8500", "/cluster/database", changConf)
-	dbConns.ResetDbsConn(ctx, cancel,changConf)
-	*/
-	// -----------------
-	
+	// 热更新
+	go hotUpdate(conf, dbConns)
 	
 	s := storage.NewStorage(dbConns) // 存储
 	u := auth.NewService(s)     // 服务

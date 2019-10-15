@@ -9,6 +9,7 @@ import (
 	"github.com/yb19890724/go-im/example/example3/pkg/config"
 	"log"
 	"sync"
+	"time"
 )
 
 var mysqlConnectors *MysqlConnectors
@@ -83,12 +84,15 @@ func (mc *MysqlConnectors) ResetDbsConn(ctx context.Context,cancel context.Cance
 			
 			for index, v := range mc.Conns{
 				
+				mc.DelDbsConn(index)// 删除旧连接 新的请求进行重置配置
+				
+				// 这里延时操作：当前请求正在使用旧得mysql连接，不能直接关闭。
+				// 上面先删除掉旧连接，然后等待10秒后把旧得连接全部关闭
+				time.Sleep(10*time.Second)
 				// 延时操作
 				err :=v.Close()// 关闭数据库连接
 				
-				mc.DelDbsConn(index)// 删除连接存储位
-				
-				if err !=nil {
+				if err != nil {
 					log.Printf("db close err %s",err)
 					goto ERROR
 				}
@@ -104,6 +108,7 @@ CLOSED:
 }
 
 // 获取mysql配置
+// 如果获取不到配置，尝试读取配置建立新的mysql连接
 func (mc *MysqlConnectors) GetMysqlConnection(dbName string) (*gorm.DB, error) {
 	dbConn, ok := mc.GetDbConn(dbName)
 	
