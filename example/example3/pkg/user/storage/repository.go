@@ -39,7 +39,7 @@ func (s *Storage) User(u auth.User) (auth.User, error) {
 
 	lu := auth.User{}
 	
-	db, err := s.DbConns.GetMysqlConnection("slave")
+	db, err := s.DbConns.GetMysqlConnection("subordinate")
 	
 	if err != nil {
 		return lu, err
